@@ -9,6 +9,7 @@ from layers.functions.prior_box import PriorBox
 from utils.nms_wrapper import nms
 #from utils.nms.py_cpu_nms import py_cpu_nms
 import cv2
+import time
 from models.faceboxes import FaceBoxes
 from utils.box_utils import decode
 from utils.timer import Timer
@@ -101,9 +102,12 @@ if __name__ == '__main__':
     # testing begin
     for i, img_name in enumerate(test_dataset):
         image_path = testset_folder + img_name + '.jpg'
+        # print('image_path', image_path)
         img = np.float32(cv2.imread(image_path, cv2.IMREAD_COLOR))
         if resize != 1:
+            start = time.time()
             img = cv2.resize(img, None, None, fx=resize, fy=resize, interpolation=cv2.INTER_LINEAR)
+            print('[resize] ', time.time() - start)
         im_height, im_width, _ = img.shape
         scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
         img -= (104, 117, 123)
@@ -116,9 +120,14 @@ if __name__ == '__main__':
         out = net(img)  # forward pass
         _t['forward_pass'].toc()
         _t['misc'].tic()
+
+        # PriorBox创建先验框：out[2]就是各层的输出size，用于创建先验框
+        start = time.time()
         priorbox = PriorBox(cfg, out[2], (im_height, im_width), phase='test')
         priors = priorbox.forward()
         priors = priors.to(device)
+        print('[PriorBox] init', time.time() - start)
+
         loc, conf, _ = out
         prior_data = priors.data
         boxes = decode(loc.data.squeeze(0), prior_data, cfg['variance'])
